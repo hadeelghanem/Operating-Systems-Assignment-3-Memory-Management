@@ -29,7 +29,9 @@ Build xv6:
 make qemu
 
 To run shared memory test:
+```bash
 shmem_test
 
 To run logging system test:
+```bash
 log_test
