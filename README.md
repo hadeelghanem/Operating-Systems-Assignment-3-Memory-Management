@@ -33,5 +33,3 @@ shmem_test
 
 Run logging system test:
 log_test
-```bash
-make qemu
