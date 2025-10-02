@@ -28,8 +28,8 @@ Build xv6:
 ```bash
 make qemu
 
-Run shared memory test:
+To run shared memory test:
 shmem_test
 
-Run logging system test:
+To run logging system test:
 log_test
