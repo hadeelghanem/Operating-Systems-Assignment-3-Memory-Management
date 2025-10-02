@@ -6,6 +6,7 @@
 #include "defs.h"
 #include "fs.h"
 
+
 /*
  * the kernel's page table.
  */
@@ -167,6 +168,7 @@ mappages(pagetable_t pagetable, uint64 va, uint64 size, uint64 pa, int perm)
 // Remove npages of mappings starting from va. va must be
 // page-aligned. The mappings must exist.
 // Optionally free the physical memory.
+//modified for task 1 
 void
 uvmunmap(pagetable_t pagetable, uint64 va, uint64 npages, int do_free)
 {
@@ -183,7 +185,10 @@ uvmunmap(pagetable_t pagetable, uint64 va, uint64 npages, int do_free)
       panic("uvmunmap: not mapped");
     if(PTE_FLAGS(*pte) == PTE_V)
       panic("uvmunmap: not a leaf");
-    if(do_free){
+    
+    //only free the physical page if do_free is set AND 
+    //the page is not shared (doesn't have PTE_S flag)
+    if(do_free && (*pte & PTE_S) == 0){
       uint64 pa = PTE2PA(*pte);
       kfree((void*)pa);
     }
@@ -437,3 +442,4 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
     return -1;
   }
 }
+

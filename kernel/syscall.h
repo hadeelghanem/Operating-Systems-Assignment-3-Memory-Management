@@ -20,3 +20,6 @@
 #define SYS_link   19
 #define SYS_mkdir  20
 #define SYS_close  21
+//task 1 : add system calls
+#define SYS_map_shared_pages   22
+#define SYS_unmap_shared_pages 23

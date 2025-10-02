@@ -681,3 +681,93 @@ procdump(void)
     printf("\n");
   }
 }
+
+
+//task 1 
+
+uint64
+map_shared_pages(struct proc* src_proc, struct proc* dst_proc, uint64 src_va, uint64 size)
+{
+  uint64 src_start, dst_start;
+  uint64 pages_needed;
+  pte_t *pte;
+  uint64 pa;
+  int flags;
+  uint64 offset;
+  offset = src_va % PGSIZE; //calculate the offset from the start of the page
+  src_start = PGROUNDDOWN(src_va); //round down to page boundary for source
+  pages_needed = PGROUNDUP(size + offset) / PGSIZE;  //calculate how many pages we need to map
+  
+  //find where to place the mapping in destination process
+  //use the current size of the destination process as the starting address
+  dst_start = dst_proc->sz;
+  
+  //walk through each page that needs to be mapped
+  for(uint64 i = 0; i < pages_needed; i++) {
+    uint64 current_src_va = src_start + i * PGSIZE;
+    uint64 current_dst_va = dst_start + i * PGSIZE;
+    
+    //get the PTE for the source address
+    pte = walk(src_proc->pagetable, current_src_va, 0);
+    if(pte == 0 || (*pte & PTE_V) == 0 || (*pte & PTE_U) == 0) {
+      //invalid or non-user page, cleanup any mappings we've made so far
+      if(i > 0) {
+        uvmunmap(dst_proc->pagetable, dst_start, i, 0);
+      }
+      return -1; //return -1 on failure, not 0
+    }
+    
+    //get physical address and flags from source PTE
+    pa = PTE2PA(*pte);
+    flags = PTE_FLAGS(*pte) | PTE_S; // Add shared flag
+    
+    //map the page in the destination process
+    if(mappages(dst_proc->pagetable, current_dst_va, PGSIZE, pa, flags) != 0) {
+      //mapping failed, cleanup
+      if(i > 0) {
+        uvmunmap(dst_proc->pagetable, dst_start, i, 0);
+      }
+      return -1; //return -1 on failure, not 0
+    }
+  }
+  
+  //update the destination process size
+  dst_proc->sz += pages_needed * PGSIZE;
+  
+  //return the virtual address in destination process with correct offset
+  return dst_start + offset;
+}
+
+uint64
+unmap_shared_pages(struct proc* p, uint64 addr, uint64 size)
+{
+  uint64 start_va, pages_to_unmap;
+  uint64 offset;
+  pte_t *pte;
+  
+  //calculate offset and round down to page boundary
+  offset = addr % PGSIZE;
+  start_va = PGROUNDDOWN(addr);
+  
+  pages_to_unmap = PGROUNDUP(size + offset) / PGSIZE; //calculate number of pages to unmap
+  
+  //verify the mapping exists and is shared
+  for(uint64 i = 0; i < pages_to_unmap; i++) {
+    uint64 current_va = start_va + i * PGSIZE;
+    pte = walk(p->pagetable, current_va, 0);
+    if(pte == 0 || (*pte & PTE_V) == 0 || (*pte & PTE_S) == 0) {
+      //invalid mapping or not a shared mapping
+      return -1;
+    }
+  }
+  
+  //unmap the pages (don't free physical pages since they're shared)
+  uvmunmap(p->pagetable, start_va, pages_to_unmap, 0);
+  
+  //update process size if this was at the end of the address space
+  if(start_va + pages_to_unmap * PGSIZE == p->sz) {
+    p->sz = start_va;
+  }
+  
+  return 0;
+}

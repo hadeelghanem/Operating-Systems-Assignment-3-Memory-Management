@@ -89,3 +89,79 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+
+
+//task 1
+uint64
+sys_map_shared_pages(void)
+{
+  int src_pid, dst_pid;
+  uint64 src_va, size;
+  struct proc *src_proc = 0, *dst_proc = 0;
+
+  //get arguments from user space (FIXED)
+  argint(0, &src_pid);
+  argint(1, &dst_pid);
+  argaddr(2, &src_va);
+  argaddr(3, &size);
+
+  //find the source and destination processes
+  extern struct proc proc[NPROC];
+  
+  for(struct proc *p = proc; p < &proc[NPROC]; p++) {
+    acquire(&p->lock);
+    if(p->state != UNUSED) {
+      if(p->pid == src_pid && src_proc == 0) {
+        src_proc = p;
+      }
+      if(p->pid == dst_pid && dst_proc == 0) {
+        dst_proc = p;
+      }
+    }
+    release(&p->lock);
+    
+    //early exit if we found both processes
+    if(src_proc && dst_proc)
+      break;
+  }
+
+  if(src_proc == 0 || dst_proc == 0)
+    return -1;
+
+  //acquire locks in consistent order to avoid deadlock
+  struct proc *first, *second;
+  if(src_proc < dst_proc) {
+    first = src_proc;
+    second = dst_proc;
+  } else {
+    first = dst_proc;
+    second = src_proc;
+  }
+
+  acquire(&first->lock);
+  if(first != second)
+    acquire(&second->lock);
+
+  uint64 result = map_shared_pages(src_proc, dst_proc, src_va, size);
+
+  release(&first->lock);
+  if(first != second)
+    release(&second->lock);
+
+  return result;
+}
+
+
+uint64
+sys_unmap_shared_pages(void)
+{
+  uint64 addr, size;
+  struct proc *p = myproc();
+  argaddr(0, &addr);
+  argaddr(1, &size);
+  acquire(&p->lock);
+  uint64 result = unmap_shared_pages(p, addr, size);
+  release(&p->lock);
+
+  return result;
+}
